@@ -1,0 +1,60 @@
+stages:
+  - build
+  - clang
+  - test
+  - deploy
+
+build_job:
+  stage: build
+  script:
+    - echo "Compiling the code..."
+    - cd src/C3_SimpleBashUtils/cat
+    - make
+    - cd ../grep
+    - make
+    - echo "Compilation complete!"
+  after_script:
+    - bash src/telegram.sh "CI build"
+  artifacts:
+    paths:
+      - src/C3_SimpleBashUtils/cat
+      - src/C3_SimpleBashUtils/grep
+    expire_in: 30 days
+
+clang_job:
+  stage: clang
+  script:
+    - echo "Checking code style (clang-format) ..."
+    - cd src/C3_SimpleBashUtils/cat
+    - clang-format -style=google -n -Werror *.c *.h || { echo "Error with code style (clang-format)"; exit 1; }
+    - cd ../grep
+    - clang-format -style=google -n -Werror *.c *.h || { echo "Error with code style (clang-format)"; exit 1; }
+    - echo "Checking code style (clang-format) complete!"
+  after_script:
+    - bash src/telegram.sh "CI clang"
+
+test_job:
+  stage: test
+  script:
+    - echo "Running test..."
+    - cd src/C3_SimpleBashUtils/cat
+    - if sh test.sh | grep -v "identical"; then echo "Tests FAILED"; exit 1; else echo "Tests passed successfully"; fi
+    - cd ../grep
+    - if sh test.sh | grep -v "identical"; then echo "Tests FAILED"; exit 1; else echo "Tests passed successfully"; fi
+    - echo "Tests complete!"
+  after_script:
+    - bash src/telegram.sh "CI test"
+
+deploy_job:
+  stage: deploy
+  script:
+    - echo "Deploying application"
+    - cd src
+    - chmod +x deploy_artifacts.sh
+    - bash deploy_artifacts.sh
+    - echo "Deploy completed!"
+  when: manual
+  environment:
+    name: production
+  after_script:
+    - bash src/telegram.sh "CD deploy"
